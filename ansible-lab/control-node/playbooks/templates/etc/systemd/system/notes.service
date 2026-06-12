@@ -1,0 +1,12 @@
+[Unit]
+Description=notes
+After=netword.target
+
+[Service]
+User=app
+WorkingDirectory=/opt/notes
+ExecStart=/usr/bin/java -jar -Djava.awt.headless=true -Djava.security.egd=file:/dev/./uramdom /opt/notes/target/easy-notes-{{app_version.stdout}}.jar
+SyslogIdentifier=notes-%i
+
+[Intall]
+WantedBy=multi-user.target

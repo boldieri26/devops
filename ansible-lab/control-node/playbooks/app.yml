@@ -1,0 +1,78 @@
+---
+ - name: Configurar servidor de aplicação Java
+   hosts: 192.169.1.3
+
+   user: vagrant
+   become: yes
+
+   vars:
+    - dbhost: "db01"
+    - dbname: "notes"
+    - dbusername: "notesapp"
+    - dbpassword: "devops"
+   tasks:     
+    - name: Adicionar usuario do App 
+      user:
+        name: app 
+        comment: Usuario de aplicação
+        uid: 500
+    - name: Instalação do maven
+      yum:
+        name: maven
+        state: latest
+    - name: Instalação do Java
+      yum:
+        name: java-11-openjdk-devel
+        state: latest
+    - name: Criação do diretório da aplicação
+      file:
+        path: /opt/notes
+        state: directory
+        owner: app
+        group: app
+    - name: instalacao do git client
+      yum:
+        name: git
+        state: latest    
+    - name: Clone do repositório Notes - app
+      become_user: app
+      git:
+        repo: https://github.com/callicoder/spring-boot-mysql-rest-api-tutorial.git
+        dest: /opt/notes
+        clone: yes
+        force: yes
+    - name: Configurar arquivos de propriedades para camada de banco de dados
+      template: 
+        src: application.properties
+        dest: /opt/notes/src/main/resources/application.properties
+    - name: Gerar pacote da aplicação
+      shell: mvn -f /opt/notes/pom.xml package
+      become_user: app
+      environment:
+        JAVA_HOME: /usr/lib/jvm/java-11-openjdk
+        PATH: "/usr/lib/jvm/java-11-openjdk/bin:{{ ansible_env.PATH }}"
+    - name: Registrar versão atual do pacote
+      shell: 
+         cmd: mvn -q -Dexec.executable=echo -Dexec.args='${project.version}' exec:exec
+         chdir: /opt/notes/
+      register: app_version
+    -  name: Configurar serviço do Systemd
+       template:
+        src: etc/systemd/system/notes.service
+        dest: /etc/systemd/system/notes.service  
+       notify: reload daemon
+    - name: Iniciar serviço notes
+      service:
+        name: notes
+        state: restarted
+   roles:
+    - configuracao-default-so
+   handlers:
+    - name: reload app
+      systemd: 
+        state: restarted
+        daemon_reload: yes
+        name: 'notes'
+    - name: reload daemon
+      systemd:
+        daemon_reexec: yes            
